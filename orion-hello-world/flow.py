@@ -1,32 +1,57 @@
 from itertools import product
-from prefect import task, flow
+from prefect import flow, task
 from prefect.executors import DaskExecutor
 from pydantic import BaseModel
-from typing import Iterable, Union
+from secrets import randbelow
+from typing import Iterable, List, Union
+
+import coloredlogs
+import logging
+import networkx as nx
+
+logger = logging.getLogger(__name__)
+coloredlogs.install(level="INFO", logger=logger)
 
 class Geometry(BaseModel):
     dimension: int
     width: Union[int, Iterable[int]]
 
-    def size(self: object):
+    def size(self: object): # assumed isochoric
         return self.width**self.dimension
-    
+
+class Node(BaseModel):
+    index: int
+
 class Edge(BaseModel):
-    start: int
-    end: int
+    head: Node
+    tail: Node
 
-@task 
-def possibilities(g: Geometry):
+@task
+def possibility(i: int, dim: int, width: int) -> Edge:
+    return Edge(
+        head=Node(index=i), 
+        tail=Node(index=i + width**dim)
+    )
+
+def shuffle(p: List[Edge]) -> List[Edge]:
+    return [p.pop(randbelow(len(p))) for i in range(len(p))]
+
+@task
+def elapse(P: List[Edge], N: int) -> nx.Graph:
+    G = nx.Graph()
+    for event in shuffle(P):
+        head, tail = event
+        print(head, tail)
+        G.add_edge(head.index, tail.index)
+    return G
+
+@flow#(executor=DaskExecutor())
+def evolve():
+    g = Geometry(dimension=2, width=4)
     N = g.size()
-    for i,d in product(range(N), range(g.dimension)):
-        possibility = i + g.width**d
-        print(Edge(start=i, end=possibility % N))
 
-@flow(executor=DaskExecutor())
-def main():
-    geometry = Geometry(dimension=5, width=4)
+    space = product(range(N), range(g.dimension))
+    possibilities = [possibility(i, R, g.width) for i,R in space]
+    elapse(possibilities, N=N)
 
-    possibilities(geometry)
-
-if __name__ == "__main__":
-    main()
+evolve()
