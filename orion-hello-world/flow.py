@@ -7,7 +7,6 @@ from typing import Iterable, List, Union
 
 import coloredlogs
 import logging
-import networkx as nx
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level="INFO", logger=logger)
@@ -26,6 +25,13 @@ class Edge(BaseModel):
     head: Node
     tail: Node
 
+class Graph(BaseModel):
+    edges: Iterable[Edge] = []
+    nodes: Iterable[Node] = []
+
+    def add_edge(self: object, edge: Edge):
+        self.edges.append(edge)
+
 @task
 def possibility(i: int, dim: int, width: int) -> Edge:
     return Edge(
@@ -37,17 +43,18 @@ def shuffle(p: List[Edge]) -> List[Edge]:
     return [p.pop(randbelow(len(p))) for i in range(len(p))]
 
 @task
-def elapse(P: List[Edge], N: int) -> nx.Graph:
-    G = nx.Graph()
+def elapse(P: List[Edge], N: int) -> Graph:
+    G = Graph()
     for event in shuffle(P):
-        head, tail = event
-        print(head, tail)
-        G.add_edge(head.index, tail.index)
+        G.add_edge(event)
     return G
 
 @flow#(executor=DaskExecutor())
 def evolve():
-    g = Geometry(dimension=2, width=4)
+    g = Geometry(
+        dimension=2, 
+        width=2
+    )
     N = g.size()
 
     space = product(range(N), range(g.dimension))
