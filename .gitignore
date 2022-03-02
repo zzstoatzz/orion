@@ -1,1 +1,2 @@
-dask-worker*
+**.csv
+**dask-worker-space**
