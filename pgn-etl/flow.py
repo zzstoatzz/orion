@@ -38,9 +38,10 @@ def load_games(games: Tuple[Game], base_path: str) -> None:
     filepath = f's3://{base_path}/archived-chess-games/{year}/{month}.parquet.gzip'
     df.to_parquet(filepath, compression='gzip')
 
-@flow(name="Store chess.com users' games", task_runner=DaskTaskRunner(), version='0.0.1')
+@flow(name="Store chess.com users' games", task_runner=DaskTaskRunner(), version='1.0.0')
 def orca(S3_bucket: str) -> None:
-    for username in ['HowellV']:
+    for username in ['glen_bishop', 'n80n8']:
+        print(username)
 
         archive_urls = get_player_game_archives(username=username).archives
 
@@ -48,7 +49,7 @@ def orca(S3_bucket: str) -> None:
 
         if len(user_games) == 0:
             print(f'No new months of games to load for {username}!')
-            return
+            continue
 
         print(f'Fetching {len(user_games) } new months of games from {username}..')
 
@@ -62,9 +63,9 @@ DeploymentSpec(
     flow_location='flow.py',
     name='PGN ETL',
     flow_name="Store chess.com users' games",
-    schedule=IntervalSchedule(interval=timedelta(days=1)),
     parameters={"S3_bucket": "nate-demo-bucket"},
     tags=["chess", "funsies"]
 )
+
 if __name__ == "__main__":
     orca('nate-demo-bucket')
