@@ -1,19 +1,14 @@
 [tool.poetry]
-name = "pgn-etl"
+name = "py3-10"
 version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.10"
-"chess.com" = "^1.7.6"
+python = "3.10"
+prefect = "2.0a6"
 greenlet = "^1.1.2"
-pydantic = "^1.9.0"
-boto3 = "^1.21.5"
-pandas = "^1.4.1"
-python-chess = "^1.999"
-ipython = "^8.0.1"
-prefect = "2.0a13"
+requests = "^2.27.1"
 
 [tool.poetry.dev-dependencies]
 
