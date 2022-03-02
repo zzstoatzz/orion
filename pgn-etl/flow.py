@@ -44,7 +44,7 @@ def orca(S3_bucket: str) -> None:
 
         archive_urls = get_player_game_archives(username=username).archives
 
-        user_games = [get_games(url) for url in archive_urls if not alreadyStored(url, S3_bucket, username) or True]
+        user_games = [get_games(url) for url in archive_urls if not alreadyStored(url, S3_bucket, username)]
 
         if len(user_games) == 0:
             print(f'No new months of games to load for {username}!')
