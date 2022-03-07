@@ -2,9 +2,12 @@ from chessdotcom import get_player_game_archives
 from io import StringIO
 from prefect import flow, task
 from prefect.deployments import DeploymentSpec
-from typing import List, Tuple
+from prefect.task_runners import DaskTaskRunner
+from prefect.tasks import task_input_hash
+from typing import Generator, List, Tuple
 import boto3, chess.pgn as pgn, pandas as pd, requests
 
+# https://python-chess.readthedocs.io/en/latest/pgn.html
 class Game(pgn.Game):
     def __init__(self: object, pgn_str: str):
         self.game_obj = pgn.read_game(StringIO(pgn_str)).__dict__
@@ -14,16 +17,18 @@ class Game(pgn.Game):
 
 def alreadyStored(bucket: str, username: str) -> List[str]:
     client = boto3.client('s3')
+    bucket_contents = client.list_objects_v2(Bucket=bucket, Prefix=username)['Contents']
+
     try:
-        return [i['Key'].split('.')[0] for i in client.list_objects_v2(Bucket=bucket, Prefix=username)['Contents']]
+        return [i['Key'].split('.')[0].lower() for i in bucket_contents]
     except KeyError:
         return []
 
-@task
-def get_games(url: str) -> Tuple[Game]:
+@task(cache_key_fn=task_input_hash)
+def get_games(url: str) -> Generator[Game, None, None]:
     print(f"GET {url}")
-    raw_games = requests.get(url).json()['games']
-    return (Game(game['pgn']) for game in raw_games)
+    for game in requests.get(url).json()['games']:
+        yield Game(game['pgn'])
 
 @task
 def load_games(games: Tuple[Game], base_path: str) -> None:
@@ -33,16 +38,16 @@ def load_games(games: Tuple[Game], base_path: str) -> None:
     filepath = f's3://{base_path}/games/{year}/{month}.parquet.gzip'
     df.to_parquet(filepath, compression='gzip')
 
-@flow(name="Store chess.com users' games", version='1.0.0')
+@flow(name="Store chess.com users' games", task_runner=DaskTaskRunner, version="1.0.0")
 def orca(S3_bucket: str) -> None:
 
-    for username in ['n80n8']:
+    for username in ['HowellV']:
         print(f"Checking for games on chess.com from: {username}")
 
         # list of URLs to GET months of games from
         archive_urls = get_player_game_archives(username=username).archives
 
-        # use already stored if desired
+        # only get_games if they're not already stored
         stored_games = alreadyStored(S3_bucket, username)
         path_from = lambda url: url.split('player/')[-1]
         new_user_games = [get_games(url) for url in archive_urls if path_from(url) not in stored_games]
