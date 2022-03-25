@@ -1,9 +1,5 @@
 from chessdotcom import get_player_game_archives
 from io import StringIO
-from prefect import flow, task
-from prefect.deployments import DeploymentSpec
-from prefect.task_runners import DaskTaskRunner
-from prefect.tasks import task_input_hash
 from typing import Generator, List, Tuple
 import boto3, chess.pgn as pgn, pandas as pd, requests
 
@@ -22,13 +18,11 @@ def alreadyStored(bucket: str, username: str) -> List[str]:
     except KeyError:
         return []
 
-@task(cache_key_fn=task_input_hash)
 def get_games(url: str) -> Generator[Game, None, None]:
     print(f"GET {url}")
     for game in requests.get(url).json()['games']:
         yield Game(game['pgn'])
 
-@task
 def load_games(games: Tuple[Game], base_path: str) -> None:
     df = pd.concat([game.df for game in games])
     year, month, _ = list(df['Date'])[0].split('.')
@@ -36,7 +30,6 @@ def load_games(games: Tuple[Game], base_path: str) -> None:
     filepath = f's3://{base_path}/games/{year}/{month}.parquet.gzip'
     df.to_parquet(filepath, compression='gzip')
 
-@flow(name="Store chess.com users' games", version="1.0.0")
 def orca(S3_bucket: str) -> None:
 
     for username in ['jamessopkin']:
@@ -61,14 +54,6 @@ def orca(S3_bucket: str) -> None:
                 games=month,
                 base_path=f"{S3_bucket}/{username}"
             )
-
-DeploymentSpec(
-    flow_location='flow.py',
-    name='PGN ETL',
-    flow_name="Store chess.com users' games",
-    parameters={"S3_bucket": "nate-demo-bucket"},
-    tags=["chess", "funsies"]
-)
 
 if __name__ == "__main__":
     orca('nate-demo-bucket')
