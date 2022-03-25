@@ -1,55 +1,70 @@
 from itertools import product
 from prefect import flow, task
-from pydantic import BaseModel
 from secrets import randbelow
 from typing import Iterable, List, Union
 
-class Geometry(BaseModel):
-    dimension: int
-    width: Union[int, Iterable[int]]
+class Geometry:
+    def __init__(self: object, dimension: int, width: Union[int, Iterable[int]]):
+        self.cartesian_size = width**dimension
+        self.dimension=dimension
+        self.width = width
 
-    def size(self: object): # assumed isochoric
-        return self.width**self.dimension
+class Node:
+    def __init__(self: object, index: int):
+        self.index = index
 
-class Node(BaseModel):
-    index: int
+    def __repr__(self) -> str:
+        return f"@{self.index}"
 
-class Edge(BaseModel):
-    head: Node
-    tail: Node
+class Edge:
+    def __init__(self: object, head: Node, tail: Node):
+        self.head = head
+        self.tail = tail
+        
+    def __repr__(self) -> str:
+        return f"head: {self.head} tail: {self.tail}"
 
-class Graph(BaseModel):
-    edges: Iterable[Edge] = []
-    nodes: Iterable[Node] = []
 
-@task
+class Graph:
+    def __init__(self: object, edges: Iterable[Edge], nodes: Iterable[Node] = []):
+        self.edges = edges
+        self.nodes = nodes
+
+graph = Graph([], [])
+
+@flow
 def get_possibility(i: int, dim: int, width: int) -> Edge:
     return Edge(
         head=Node(index=i), 
         tail=Node(index=i + width**dim)
     )
+    
 
 
 def shuffle(p: List[Edge]) -> List[Edge]:
     return [p.pop(randbelow(len(p))) for i in range(len(p))]
 
-@task
-def elapse(events: List[Edge], N: int) -> Graph:
-    G = Graph()
-    G.edges = [event for event in shuffle(events)]
-    return G
+@flow
+def elapse(events: List[Edge]) -> Graph:
+    for event in shuffle(events):
+        print(event)
+        yield event
+
 
 @flow
 def evolve():
-    g = Geometry(
+    geometry = Geometry(
         dimension=2, 
-        width=2
+        width=4
     )
-    N = g.size()
+    N = geometry.cartesian_size
 
-    space = product(range(N), range(g.dimension))
-    possibilities = [get_possibility(i, R, g.width) for i,R in space]
-    elapse(possibilities, N=N)
+    space = product(range(N), range(geometry.dimension))
+    
+    possibilities = [get_possibility(i, R, geometry.width) for i,R in space]
+    
+    elapse(possibilities)
+    
     
 if __name__ == "__main__":
     evolve()

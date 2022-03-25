@@ -17,10 +17,8 @@ class Game(pgn.Game):
 
 def alreadyStored(bucket: str, username: str) -> List[str]:
     client = boto3.client('s3')
-    bucket_contents = client.list_objects_v2(Bucket=bucket, Prefix=username)['Contents']
-
     try:
-        return [i['Key'].split('.')[0].lower() for i in bucket_contents]
+        return [i['Key'].split('.')[0].lower() for i in client.list_objects_v2(Bucket=bucket, Prefix=username)['Contents']]
     except KeyError:
         return []
 
@@ -38,10 +36,10 @@ def load_games(games: Tuple[Game], base_path: str) -> None:
     filepath = f's3://{base_path}/games/{year}/{month}.parquet.gzip'
     df.to_parquet(filepath, compression='gzip')
 
-@flow(name="Store chess.com users' games", task_runner=DaskTaskRunner, version="1.0.0")
+@flow(name="Store chess.com users' games", version="1.0.0")
 def orca(S3_bucket: str) -> None:
 
-    for username in ['HowellV']:
+    for username in ['jamessopkin']:
         print(f"Checking for games on chess.com from: {username}")
 
         # list of URLs to GET months of games from
